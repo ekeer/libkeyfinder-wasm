@@ -1,47 +1,46 @@
 #include <emscripten.h>
-#include <vector>
+#include <string>
 #include "keyfinder.h"
 #include "audiodata.h"
 
-extern "C" {
-
 struct KeyFinderHandle {
     KeyFinder::KeyFinder* kf;
-    KeyFinder::KeyFinder() {
-        kf = new KeyFinder::KeyFinder();
-    }
-    ~KeyFinderHandle() {
-        delete kf;
-    }
 };
+
+extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
 KeyFinderHandle* keyfinder_create() {
-    return new KeyFinderHandle();
+    KeyFinderHandle* h = new KeyFinderHandle();
+    h->kf = new KeyFinder::KeyFinder();
+    return h;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void keyfinder_destroy(KeyFinderHandle* handle) {
-    delete handle;
+    if (handle) {
+        delete handle->kf;
+        delete handle;
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* keyfinder_detect_key(KeyFinderHandle* handle, const float* samples, int sampleCount, int sampleRate) {
-    if (!handle) return nullptr;
+    if (!handle || !handle->kf || !samples || sampleCount <= 0) return nullptr;
+
+    static std::string result;
 
     try {
         KeyFinder::AudioData audio;
         audio.setFrameRate(sampleRate);
         audio.setChannels(1);
         audio.addToSampleCount(sampleCount);
-
         for (int i = 0; i < sampleCount; i++) {
             audio.setSample(i, samples[i]);
         }
 
         KeyFinder::key_t key = handle->kf->keyOfAudio(audio);
 
-        static std::string result;
         switch (key) {
             case KeyFinder::A_MAJOR: result = "A"; break;
             case KeyFinder::A_MINOR: result = "Am"; break;
@@ -51,8 +50,8 @@ const char* keyfinder_detect_key(KeyFinderHandle* handle, const float* samples, 
             case KeyFinder::B_MINOR: result = "Bm"; break;
             case KeyFinder::C_MAJOR: result = "C"; break;
             case KeyFinder::C_MINOR: result = "Cm"; break;
-            case KeyFinder::D_FLAT_MAJOR: result = "C#"; break;
-            case KeyFinder::D_FLAT_MINOR: result = "C#m"; break;
+            case KeyFinder::D_FLAT_MAJOR: result = "Db"; break;
+            case KeyFinder::D_FLAT_MINOR: result = "Dbm"; break;
             case KeyFinder::D_MAJOR: result = "D"; break;
             case KeyFinder::D_MINOR: result = "Dm"; break;
             case KeyFinder::E_FLAT_MAJOR: result = "Eb"; break;
@@ -61,8 +60,8 @@ const char* keyfinder_detect_key(KeyFinderHandle* handle, const float* samples, 
             case KeyFinder::E_MINOR: result = "Em"; break;
             case KeyFinder::F_MAJOR: result = "F"; break;
             case KeyFinder::F_MINOR: result = "Fm"; break;
-            case KeyFinder::G_FLAT_MAJOR: result = "F#"; break;
-            case KeyFinder::G_FLAT_MINOR: result = "F#m"; break;
+            case KeyFinder::G_FLAT_MAJOR: result = "Gb"; break;
+            case KeyFinder::G_FLAT_MINOR: result = "Gbm"; break;
             case KeyFinder::G_MAJOR: result = "G"; break;
             case KeyFinder::G_MINOR: result = "Gm"; break;
             case KeyFinder::A_FLAT_MAJOR: result = "Ab"; break;
