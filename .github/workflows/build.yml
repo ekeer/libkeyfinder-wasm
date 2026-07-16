@@ -1,0 +1,65 @@
+name: Build WASM
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.73
+
+      - name: Verify emcc
+        run: emcc --version
+
+      - name: Build FFTW3 for WASM
+        run: |
+          curl -L https://github.com/mixxxdj/libkeyfinder/releases/download/dependencies/fftw3-wasm.tar.gz | tar xz
+          export PKG_CONFIG_PATH=$PWD/fftw3-wasm/lib/pkgconfig
+          
+      - name: Configure CMake
+        run: |
+          emcmake cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFFTW3_ROOT=\${{ github.workspace }}/fftw3-wasm
+
+      - name: Build library
+        run: emmake make -C build -j\$(nproc)
+
+      - name: Link WASM
+        run: |
+          emcc -O3 \
+            -s WASM=1 \
+            -s EXPORTED_FUNCTIONS='[\"_malloc\",\"_free\",\"_keyfinder_create\",\"_keyfinder_destroy\",\"_keyfinder_detect_key\"]' \
+            -s EXPORTED_RUNTIME_METHODS='[\"ccall\",\"cwrap\",\"getValue\",\"setValue\",\"UTF8ToString\",\"stringToUTF8\"]' \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME='createKeyFinderModule' \
+            -s ENVIRONMENT='web,worker' \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s INITIAL_MEMORY=67108864 \
+            -s FILESYSTEM=0 \
+            -o dist/libkeyfinder-core.js \
+            build/libkeyfinder-core.a \
+            \${{ github.workspace }}/fftw3-wasm/lib/libfftw3.a
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libkeyfinder-wasm
+          path: dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: build-\${{ github.run_number }}
+          files: dist/*
