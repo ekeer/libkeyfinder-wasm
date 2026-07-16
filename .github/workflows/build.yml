@@ -5,29 +5,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FFTW3_ROOT: ${{ github.workspace }}/fftw3-wasm
     steps:
       - uses: actions/checkout@v4
         with: {submodules: recursive}
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with: {version: 3.1.73}
-      - name: Build FFTW3
+      - name: Build
         run: |
-          curl -L https://fftw.org/fftw-3.3.10.tar.gz | tar xz
-          cd fftw-3.3.10
-          emconfigure ./configure --disable-shared --enable-static --prefix=$FFTW3_ROOT
-          emmake make -j$(nproc) && emmake make install
-      - name: Build libKeyFinder
-        run: |
-          mkdir -p build
-          cd build
-          emcmake cmake .. -DFFTW3_ROOT=$FFTW3_ROOT -DCMAKE_BUILD_TYPE=Release
-          emmake make -j$(nproc) VERBOSE=1 2>&1
-      - name: Link WASM
-        run: |
-          emcc -O3             -s WASM=1             -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]'             -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]'             -s MODULARIZE=1 -s EXPORT_NAME='createKeyFinderModule'             -s ENVIRONMENT='web,worker' -s ALLOW_MEMORY_GROWTH=1             -s INITIAL_MEMORY=67108864 -s FILESYSTEM=0             -o dist/libkeyfinder-core.js build/libkeyfinder-core.a $FFTW3_ROOT/lib/libfftw3.a
+          mkdir -p dist
+          emcc -O3             -s WASM=1             -s USE_FFTW=1             -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]'             -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]'             -s MODULARIZE=1 -s EXPORT_NAME='createKeyFinderModule'             -s ENVIRONMENT='web,worker' -s ALLOW_MEMORY_GROWTH=1             -s INITIAL_MEMORY=67108864 -s FILESYSTEM=0             -I libkeyfinder/src -I src             libkeyfinder/src/*.cpp src/keyfinder_wrapper.cpp             -o dist/libkeyfinder-core.js 2>&1
+      - name: Check output
+        run: ls -lh dist/
       - uses: actions/upload-artifact@v4
         with: {name: libkeyfinder-wasm, path: dist/}
       - name: Release
