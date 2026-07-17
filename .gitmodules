@@ -1,4 +1,1 @@
-[submodule "libkeyfinder"]
-    path = libkeyfinder
-    url = https://github.com/mixxxdj/libkeyfinder.git
-    branch = main
+# submodule replaced by direct source download in CI
