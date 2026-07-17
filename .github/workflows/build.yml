@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,22 +29,7 @@ jobs:
       - name: Compile WASM
         run: |
           mkdir -p dist
-          em++ -O3 \
-            -s WASM=1 \
-            -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]' \
-            -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]' \
-            -s MODULARIZE=1 -s EXPORT_NAME=createKeyFinderModule \
-            -s ENVIRONMENT=web,worker \
-            -s ALLOW_MEMORY_GROWTH=1 \
-            -s INITIAL_MEMORY=67108864 \
-            -s FILESYSTEM=0 \
-            -std=c++17 \
-            -I libkeyfinder/src -I src \
-            -I fftw3/include \
-            -L fftw3/lib \
-            libkeyfinder/src/*.cpp src/keyfinder_wrapper.cpp \
-            -lfftw3 \
-            -o dist/libkeyfinder-core.js 2>&1
+          em++ -O3 -s WASM=1 -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]' -s MODULARIZE=1 -s EXPORT_NAME=createKeyFinderModule -s ENVIRONMENT=web,worker -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=67108864 -s FILESYSTEM=0 -std=c++17 -I libkeyfinder/src -I src -I fftw3/include -L fftw3/lib libkeyfinder/src/*.cpp src/keyfinder_wrapper.cpp -lfftw3 -o dist/libkeyfinder-core.js 2>&1
       - name: Check
         run: ls -lh dist/ && file dist/libkeyfinder-core.wasm
       - uses: actions/upload-artifact@v4
@@ -51,7 +38,6 @@ jobs:
           path: dist/
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_name == 'main'
         with:
           tag_name: build-${{ github.run_number }}
           files: dist/*
