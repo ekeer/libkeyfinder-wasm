@@ -3,36 +3,45 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 3.1.73
-
-      - name: Download libKeyFinder source
+      - name: Download source
         run: |
-          mkdir -p libkeyfinder/src
-          curl -L https://github.com/mixxxdj/libkeyfinder/archive/refs/heads/main.tar.gz | tar xz --strip=2 -C libkeyfinder/src
-
-      - name: Build
+          rm -rf libkeyfinder
+          curl -sL https://github.com/mixxxdj/libkeyfinder/archive/main.tar.gz | tar xz
+          mv libkeyfinder-main libkeyfinder
+      - name: Compile
+        shell: bash
         run: |
-          mkdir -p dist
-          emcc -O3             -s WASM=1             -s USE_FFTW=1             -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]'             -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]'             -s MODULARIZE=1 -s EXPORT_NAME='createKeyFinderModule'             -s ENVIRONMENT='web,worker' -s ALLOW_MEMORY_GROWTH=1             -s INITIAL_MEMORY=67108864 -s FILESYSTEM=0 -s ERROR_ON_UNDEFINED_SYMBOLS=0             -std=c++17 -I libkeyfinder/src -I src -I src/libkeyfinder             libkeyfinder/src/*.cpp src/keyfinder_wrapper.cpp             -o dist/libkeyfinder-core.js 2>&1
-
-      - name: Check output
+          set -e
+          emcc -O3 \
+            -s WASM=1 \
+            -s USE_FFTW=1 \
+            -s EXPORTED_FUNCTIONS='["_malloc","_free","_keyfinder_create","_keyfinder_destroy","_keyfinder_detect_key"]' \
+            -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","UTF8ToString"]' \
+            -s MODULARIZE=1 -s EXPORT_NAME=createKeyFinderModule \
+            -s ENVIRONMENT=web,worker \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s INITIAL_MEMORY=67108864 \
+            -s FILESYSTEM=0 \
+            -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
+            -std=c++17 \
+            -I libkeyfinder/src -I src \
+            libkeyfinder/src/*.cpp src/keyfinder_wrapper.cpp \
+            -o dist/libkeyfinder-core.js 2>&1
+      - name: Check
         run: ls -lh dist/
-
       - uses: actions/upload-artifact@v4
         with:
           name: libkeyfinder-wasm
           path: dist/
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: github.ref_name == 'main'
